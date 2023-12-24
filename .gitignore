@@ -1,6 +1,16 @@
+# data files
 data
 *.csv
 
+# virtual environment
 .venv
+
+# IDE files
 .idea
+
+# environment files
+.env
+.envrc
+
+# macOS files
 .DS_Store
