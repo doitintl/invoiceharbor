@@ -10,6 +10,7 @@ from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
 from langchain.chat_models import ChatOpenAI
 from pydantic import BaseModel, Field
+from typing import Optional
 
 
 # Define a new Pydantic model with field descriptions and tailored for AWS Invoice/Credit Record.
@@ -31,13 +32,13 @@ class AwsInvoiceCredit(BaseModel):
     original_invoice_date: str = Field(default="", description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note.")
     total_amount: float = Field(description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_amount_currency: str = Field(description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
-    total_vat_tax_amount: float = Field(default=None, allow_inf_nan=True, description="Total VAT/Tax Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+    total_vat_tax_amount: Optional[float] = Field(default=None, description="Total VAT/Tax Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_vat_tax_currency: str = Field(default="", description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
-    net_charges_usd: float = Field(default=None, allow_inf_nan=True, description="Net Charges (After Credits/Discounts, excl. Tax) in USD from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
-    net_charges_non_usd: float = Field(default=None, allow_inf_nan=True, description="Net Charges (After Credits/Discounts, excl. Tax) in local currency (not USD) from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
+    net_charges_usd: Optional[float] = Field(default=None, description="Net Charges (After Credits/Discounts, excl. Tax) in USD from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
+    net_charges_non_usd: Optional[float] = Field(default=None, description="Net Charges (After Credits/Discounts, excl. Tax) in local currency (not USD) from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
     net_charges_currency: str = Field(default="", description="Net Charges local currency (not USD); use currency code instead of symbol; leave empty if not present")
-    vat_percentage: float = Field(default=None, allow_inf_nan=True, description="VAT Percentage from the Invoice Summary Table; MUST be a number following a % sign; formatted as VAT - <number>%; GST amount at <number>%; HST Amount at <number>%; leave empty if not present or not a number between 0 and 100")
-    exchange_rate: float = Field(default=None, allow_inf_nan=True, description="Exchange Rate from the Invoice Summary Table (1 USD = ?); leave empty if not found")
+    vat_percentage: Optional[float] = Field(default=None, description="VAT Percentage from the Invoice Summary Table; MUST be a number following a % sign; formatted as VAT - <number>%; GST amount at <number>%; HST Amount at <number>%; leave empty if not present or not a number between 0 and 100")
+    exchange_rate: Optional[float] = Field(default=None, description="Exchange Rate from the Invoice Summary Table (1 USD = ?); leave empty if not found")
 
 
 # remove everything after one of the following lines (including the line itself)
