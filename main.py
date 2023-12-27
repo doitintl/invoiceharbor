@@ -125,7 +125,8 @@ async def extract_data(model, document, sem):
                     if retries == 0:
                         raise Exception(f"Error processing document {file_name}: {e}")
         except Exception as e:
-            raise Exception(f"Error processing document {file_name}: {e}")
+            # returning and not raising the exception to continue processing other documents
+            return Exception(f"Error processing document {file_name}: {e}")
 
 
 async def main():
