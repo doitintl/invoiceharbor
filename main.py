@@ -15,30 +15,30 @@ from typing import Optional
 
 # Define a new Pydantic model with field descriptions and tailored for AWS Invoice/Credit Record.
 class AwsInvoiceCredit(BaseModel):
-    file_name: str = Field(description="AWS Invoice PDF file name.")
-    doit_payer_id: str = Field(description="Doit Payer ID. Can be extracted from the parent folder name.")
-    aws_account_number: str = Field(description="AWS Account number.")
+    file_name: str = Field(description="AWS Invoice PDF file name")
+    doit_payer_id: str = Field(description="Doit Payer ID")
+    document_type: str = Field(description="Document Type: can be 'Invoice' or 'Credit Note' only. Credit Note can be Credit Memo or Credit Adjustment Note.")
+    aws_account_number: str = Field(description="AWS Account number")
     address_company: str = Field(description="Address or Bill to Address company name. Use first line of the address. Usually, it is the company name.")
-    address_attn: str = Field(description="Address or Bill to Address ATTN. Use second line of the address. Usually, it is the name of the person.")
-    address_country: str = Field(description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert short country code to a full country name.")
-    amazon_company_name: str = Field(description="Amazon Web Services company name. Usually, it is Amazon Web Services, Inc. but can be different for different countries.")
-    amazon_company_branch: Optional[str] = Field(default="", description="Amazon Web Services company branch. Usually, it is after Amazon Web Services EMEA SARL but can be different for different countries; leave empty if not present")
-    document_type: str = Field(description="Document Type. Can be 'Invoice' or 'Credit Note' only. Credit Note can be Credit Memo or Credit Adjustment Note.")
-    billing_period: str = Field(description="Billing Period; Two dates separated by a dash; leave empty if not present")
-    tax_registration_number: Optional[str] = Field(default="", description="Tax Registration Number; ABN Number; GST Number; GST/HST Registration number; Issued To; usually the next number after AWS Account Number; leave empty if not present")
+    address_attn: str = Field(description="Address or Bill to Address ATTN (skip the ATTN prefix). Use second line of the address. Usually, it is the name of the person.")
+    address_country: str = Field(description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name.")
+    tax_registration_number: Optional[str] = Field(description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or  Issued To; usually the next number after AWS Account Number")
+    billing_period: str = Field(description="Billing Period; Two dates separated by a dash")
     invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
-    invoice_date: Optional[str] = Field(default="", description="Invoice Date from the Invoice Summary.")
-    original_invoice_number: Optional[str] = Field(default="", description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
-    original_invoice_date: Optional[str] = Field(default="", description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note.")
+    invoice_date: Optional[str] = Field(description="Invoice Date from the Invoice Summary.")
+    original_invoice_number: Optional[str] = Field(description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
+    original_invoice_date: Optional[str] = Field(description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note; leave empty if not present")
     total_amount: float = Field(description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_amount_currency: str = Field(description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
     total_vat_tax_amount: Optional[float] = Field(default=None, description="Total VAT/Tax Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
-    total_vat_tax_currency: Optional[str] = Field(default="", description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
-    net_charges_usd: Optional[float] = Field(default=None, description="USD Net Charges (After Credits/Discounts, excl. Tax) in USD from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
-    net_charges_non_usd: Optional[float] = Field(default=None, description="Net Charges (After Credits/Discounts, excl. Tax) in local currency (not USD) from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; leave empty if not present")
-    net_charges_currency: Optional[str] = Field(default="", description="Net Charges local currency (not USD); use currency code instead of symbol; leave empty if not present")
-    vat_percentage: Optional[float] = Field(default=None, description="Extract VAT percent (without % sign) from one of these fields: VAT - <number>%; VAT in <percent>; GST amount at <percent>; HST Amount at <percent>; leave empty if not present or not a number between 0 and 100")
-    exchange_rate: Optional[float] = Field(default=None, description="Exchange Rate from the Invoice Summary Table (1 USD = ?); leave empty if not found")
+    total_vat_tax_currency: Optional[str] = Field(description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
+    net_charges_usd: Optional[float] = Field(description="USD Net Charges (After Credits/Discounts, excl. Tax) in USD from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+    net_charges_non_usd: Optional[float] = Field(description="Net Charges (After Credits/Discounts, excl. Tax) in local currency (not USD) from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+    net_charges_currency: Optional[str] = Field(description="Net Charges local currency (not USD); use currency code instead of symbol")
+    vat_percentage: Optional[float] = Field(description="Extract VAT percent (without % sign) from one of these fields: VAT - <number>% or VAT in <percent> or GST amount at <percent> or HST Amount at <percent>")
+    exchange_rate: Optional[float] = Field(description="Exchange Rate from the (1 USD = <rate> currency) formula")
+    amazon_company_name: str = Field(description="Amazon Web Services company name. Usually, it is Amazon Web Services, Inc. but can be different for different countries")
+    amazon_company_branch: Optional[str] = Field(description="Amazon Web Services company branch. Usually, it is after Amazon Web Services EMEA SARL but can be different for different countries")
 
 
 # remove everything after one of the following lines (including the line itself)
@@ -103,13 +103,11 @@ async def extract_data(model, document, sem):
             # Generate the input using the updated prompt.
             parsing_request = textwrap.dedent(
                 """
-                Return the extracted fields in the valid JSON format: only JSON objects and arrays are allowed without any comments or other text.
-                Convert all dates to "Month name Day, Year" format with no leading zeros.
-                Keep it as simple as possible and ensure the JSON is valid. 
-                Skip the fields that are not present in the invoice.
-                Be careful with the currency symbols, which are not always in the invoice.
-                Try to extract the fields even if the invoice format differs and the fields are not in the same order. 
-                My job depends on it! And I will be very grateful to you! Will pay you an extra 1000$ if you do it without errors!
+                Tips:
+                - Convert all dates to "Month name Day, Year" format with no leading zeros
+                - Skip the fields that are not present in the invoice
+                - Branch name should not contain a full company name
+                - Extract exchange rate (X) from (1 USD = X currency) pattern
                 """
             )
             chain = LLMChain(llm=model, prompt=prompt)
@@ -149,6 +147,7 @@ async def main():
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.0,
         max_tokens=4096,
+        model_kwargs={"top_p": 0.3}
     )
 
     # measure time
