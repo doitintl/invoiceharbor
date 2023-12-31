@@ -22,23 +22,23 @@ class AwsInvoiceCredit(BaseModel):
     address_company: str = Field(description="Address or Bill to Address company name. Use first line of the address. Usually, it is the company name.")
     address_attn: str = Field(description="Address or Bill to Address ATTN (skip the ATTN prefix). Use second line of the address. Usually, it is the name of the person.")
     address_country: str = Field(description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name.")
-    tax_registration_number: Optional[str] = Field(description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or  Issued To; usually the next number after AWS Account Number")
+    tax_registration_number: Optional[str] = Field(default=None, description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or  Issued To; usually the next number after AWS Account Number")
     billing_period: str = Field(description="Billing Period; Two dates separated by a dash")
     invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
-    invoice_date: Optional[str] = Field(description="Invoice Date from the Invoice Summary.")
-    original_invoice_number: Optional[str] = Field(description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
-    original_invoice_date: Optional[str] = Field(description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note; leave empty if not present")
+    invoice_date: str = Field(description="Invoice Date from the Invoice Summary")
+    original_invoice_number: Optional[str] = Field(default=None, description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
+    original_invoice_date: Optional[str] = Field(default=None, description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note; leave empty if not present")
     total_amount: float = Field(description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_amount_currency: str = Field(description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
     total_vat_tax_amount: Optional[float] = Field(default=None, description="Total VAT/Tax Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
-    total_vat_tax_currency: Optional[str] = Field(description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
-    net_charges_usd: Optional[float] = Field(description="USD Net Charges (After Credits/Discounts, excl. Tax) in USD from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
-    net_charges_non_usd: Optional[float] = Field(description="Net Charges (After Credits/Discounts, excl. Tax) in local currency (not USD) from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
-    net_charges_currency: Optional[str] = Field(description="Net Charges local currency (not USD); use currency code instead of symbol")
-    vat_percentage: Optional[float] = Field(description="Extract VAT percent (without % sign) from one of these fields: VAT - <number>% or VAT in <percent> or GST amount at <percent> or HST Amount at <percent>")
-    exchange_rate: Optional[float] = Field(description="Exchange Rate from the (1 USD = <rate> currency) formula")
+    total_vat_tax_currency: Optional[str] = Field(default=None, description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
+    net_charges_usd: Optional[float] = Field(default=None, description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+    net_charges_non_usd: Optional[float] = Field(default=None, description="Net Charges (non-USD) (After Credits/Discounts, excl. Tax) in local currency from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+    net_charges_currency: Optional[str] = Field(default=None, description="Net Charges (non-USD) local currency; use currency code instead of symbol")
+    vat_percentage: Optional[float] = Field(default=None, description="Extract VAT percent (without % sign) from one of these fields: VAT - <number>% or VAT in <percent> or GST amount at <percent> or HST Amount at <percent>")
+    exchange_rate: Optional[float] = Field(default=None, description="Exchange Rate from the (1 USD = <rate> currency) formula")
     amazon_company_name: str = Field(description="Amazon Web Services company name. Usually, it is Amazon Web Services, Inc. but can be different for different countries")
-    amazon_company_branch: Optional[str] = Field(description="Amazon Web Services company branch. Usually, it is after Amazon Web Services EMEA SARL but can be different for different countries")
+    amazon_company_branch: Optional[str] = Field(default=None, description="Amazon Web Services company branch. Usually, it is after Amazon Web Services EMEA SARL but can be different for different countries")
 
 
 # remove everything after one of the following lines (including the line itself)
@@ -85,7 +85,7 @@ async def extract_data(model, document, sem):
             prompt = PromptTemplate(
                 template=textwrap.dedent(
                     """
-                    Extract data from the AWS Invoice or Credit document into a flat JSON object.
+                    Act as an accountant and extract data from the AWS Invoice or Credit document into a flat JSON object.
                     {format_instructions}
                     {request}
                     <document>
@@ -105,8 +105,10 @@ async def extract_data(model, document, sem):
                 """
                 Tips:
                 - Convert all dates to "Month name Day, Year" format with no leading zeros
-                - Skip the fields that are not present in the invoice
+                - Format all dates according to "Month name Day, Year" format with no leading zeros
+                - Convert alpha-2 country code to a full country name
                 - Branch name should not contain a full company name
+                - Be careful with charges and amount signs, they are usually negative for credits
                 - Extract exchange rate (X) from (1 USD = X currency) pattern
                 """
             )
@@ -130,9 +132,11 @@ async def extract_data(model, document, sem):
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("concurrency", type=int, help="number of concurrent requests to make", default=50)
-    parser.add_argument("max_docs", type=int, help="maximum number of documents to process", default=0)
-    parser.add_argument("data_dir", type=str, help="folder to scan for documents", default="./data")
+    parser.add_argument("--concurrency", type=int, help="number of concurrent requests to make", default=50, required=False)
+    parser.add_argument("--max_docs", type=int, help="maximum number of documents to process", default=0, required=False)
+    parser.add_argument("--data_dir", type=str, help="folder to scan for documents", default="./data")
+    parser.add_argument("--model", type=str, help="model name", default="gpt-4-1106-preview", required=False)
+    parser.add_argument("--output", type=str, help="output file name", default="invoices.csv", required=False)
     args = parser.parse_args()
 
     # Instantiate the semaphore to limit the number of concurrent requests.
@@ -143,11 +147,11 @@ async def main():
 
     # Instantiate the model.
     llm = ChatOpenAI(
-        model="gpt-4-1106-preview",
+        model=args.model,
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.0,
         max_tokens=4096,
-        model_kwargs={"top_p": 0.3}
+        model_kwargs={"top_p": 0.0}
     )
 
     # measure time
@@ -167,7 +171,7 @@ async def main():
         tasks.append(extract_data(llm, doc, sem))
 
     # Create a CSV file and write the results as they become available
-    with open('invoices.csv', 'w') as f:
+    with open(args.output, 'w') as f:
         for future in asyncio.as_completed(tasks):
             result = await future
             if isinstance(result, Exception):
