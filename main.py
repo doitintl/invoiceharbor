@@ -85,12 +85,15 @@ async def extract_data(model, document, sem):
             prompt = PromptTemplate(
                 template=textwrap.dedent(
                     """
-                    Act as an accountant and extract data from the AWS Invoice or Credit document into a flat JSON object.
-                    {format_instructions}
-                    {request}
+                    The following document is a plain text extracted from AWS Invoice or Credit Note PDF file.
+                    
                     <document>
                     {invoice}
                     <document>
+                    
+                    Act as an accountant and extract data from the above document into a flat JSON object.
+                    {format_instructions}
+                    {request}
                     
                     JSON:
                     """
