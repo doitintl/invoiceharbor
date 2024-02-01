@@ -3,6 +3,9 @@ data
 prompts
 *.csv
 
+# sdk files
+aws
+
 # virtual environment
 .venv
 
