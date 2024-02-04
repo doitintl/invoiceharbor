@@ -40,9 +40,9 @@ class AwsInvoiceCredit(BaseModel):
     total_amount_currency: str = Field(
         description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
     total_vat_tax_amount: Optional[float] = Field(default=None,
-                                                  description="Total VAT/Tax Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+                                                  description="(Total) VAT/Tax Amount from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_vat_tax_currency: Optional[str] = Field(default=None,
-                                                  description="VAT/Tax Currency from the Invoice Summary; use currency code instead of symbol")
+                                                  description="VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
     net_charges_usd: Optional[float] = Field(default=None,
                                              description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     net_charges_non_usd: Optional[float] = Field(default=None,
