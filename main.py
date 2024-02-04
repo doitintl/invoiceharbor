@@ -157,18 +157,11 @@ async def extract_data(model, document, sem):
                 """
             )
             chain = LLMChain(llm=model, prompt=prompt)
-            retries = 2  # number of retries
-            while retries > 0:
-                try:
-                    output = await chain.arun(request=parsing_request, invoice=document)
-                    # remove everything before the first { and after the last }
-                    output = output[output.find("{"):output.rfind("}") + 1]
-                    parsed = parser.parse(output)
-                    return parsed
-                except Exception as e:
-                    retries -= 1
-                    if retries == 0:
-                        raise Exception(f"Error processing document {file_name}: {e}")
+            output = await chain.arun(request=parsing_request, invoice=document)
+            # remove everything before the first { and after the last }
+            output = output[output.find("{"):output.rfind("}") + 1]
+            parsed = parser.parse(output)
+            return parsed
         except Exception as e:
             # returning and not raising the exception to continue processing other documents
             return Exception(f"Error processing document {file_name}: {e}")
