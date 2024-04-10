@@ -174,7 +174,7 @@ async def main():
     parser.add_argument("--max_docs", type=int, help="maximum number of documents to process", default=0,
                         required=False)
     parser.add_argument("--data_dir", type=str, help="folder to scan for documents", default="./data")
-    parser.add_argument("--model", type=str, help="model name", default="gpt-4-0125-preview", required=False)
+    parser.add_argument("--model", type=str, help="model name", default="gpt-4-turbo", required=False)
     parser.add_argument("--output", type=str, help="output file name", default="invoices.csv", required=False)
     args = parser.parse_args()
 
