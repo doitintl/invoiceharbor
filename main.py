@@ -1,14 +1,16 @@
 import asyncio
 import argparse
 import csv
+import json
 import os
 import textwrap
 import time
-from langchain.document_loaders import PyMuPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain.chains import LLMChain
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import BedrockChat
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -91,6 +93,9 @@ def scan_folder(folder, max_docs=0, processed_files=None):
                 invoice = f"File name: {file}\nDoiT payer id: {payer_id}\n" + invoice
                 documents.append(invoice)
                 doc_count += 1
+                # log progress every 100 documents
+                if doc_count % 100 == 0:
+                    print(f"Parsed {doc_count} documents")
                 if max_docs != 0 and doc_count >= max_docs:
                     return documents
     return documents
@@ -157,8 +162,11 @@ async def extract_data(model, document, sem):
                 """
             )
             chain = LLMChain(llm=model, prompt=prompt)
-            output = await chain.arun(request=parsing_request, invoice=document)
+            # output = await chain.arun(request=parsing_request, invoice=document)
+            # async invoke with dict input
+            result = await chain.ainvoke({"request": parsing_request, "invoice": document})
             # remove everything before the first { and after the last }
+            output = result["text"]
             output = output[output.find("{"):output.rfind("}") + 1]
             parsed = parser.parse(output)
             return parsed
@@ -176,7 +184,13 @@ async def main():
     parser.add_argument("--data_dir", type=str, help="folder to scan for documents", default="./data")
     parser.add_argument("--model", type=str, help="model name", default="gpt-4-turbo", required=False)
     parser.add_argument("--output", type=str, help="output file name", default="invoices.csv", required=False)
+    parser.add_argument("--service", type=str, help="service to use for LLM models (openai or bedrock)",
+                        default="openai", required=False)
+    # get kwargs from the command line
+    parser.add_argument('--kwargs', type=str, help="additional arguments for the model (dict)", required=False)
+
     args = parser.parse_args()
+    kwargs = json.loads(args.kwargs) if args.kwargs else {}
 
     # Instantiate the semaphore to limit the number of concurrent requests.
     # Approximate number of tokens per request is 1000-1500, so 50 requests will be 75k tokens
@@ -185,13 +199,22 @@ async def main():
     sem = asyncio.Semaphore(args.concurrency)
 
     # Instantiate the model.
-    llm = ChatOpenAI(
-        model=args.model,
-        openai_api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.0,
-        max_tokens=4096,
-        model_kwargs={"top_p": 0.0}
-    )
+    if args.service == "openai":
+        llm = ChatOpenAI(
+            model=args.model,
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            temperature=kwargs.get("temperature", 0.0),  # default temperature is 0.0
+            max_tokens=kwargs.get("max_tokens", 4096),  # default max tokens is 4096
+            model_kwargs={"top_p": 0.0}
+        )
+    elif args.service == "bedrock":
+        llm = BedrockChat(
+            credentials_profile_name=os.getenv("AWS_PROFILE"),
+            model_id=args.model,
+            model_kwargs=kwargs
+        )
+    else:
+        raise ValueError("Invalid service. Choose either 'openai' or 'bedrock'.")
 
     # measure time
     start = time.time()
@@ -199,10 +222,11 @@ async def main():
     processed_files = []
     if os.path.isfile(args.output):
         processed_files = get_sorted_column_values(args.output, 0)
+        print(f"Found {len(processed_files)} processed documents")
 
     # Scan the folder for documents up to the max documents if specified
     all_documents = scan_folder(args.data_dir, args.max_docs, processed_files)
-    print(f"Found {len(all_documents)} documents")
+    print(f"Found {len(all_documents)} new documents")
     end_scan = time.time()
     print(f"Time elapsed: {end_scan - start} seconds")
 
