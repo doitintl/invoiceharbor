@@ -96,6 +96,7 @@ def scan_folder(folder, max_docs=0, processed_files=None):
                 # log progress every 100 documents
                 if doc_count % 100 == 0:
                     print(f"Parsed {doc_count} documents")
+                # break if max_docs is reached
                 if max_docs != 0 and doc_count >= max_docs:
                     return documents
     return documents
