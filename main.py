@@ -27,10 +27,11 @@ class AwsInvoiceCredit(BaseModel):
     address_attn: str = Field(
         description="Address or Bill to Address ATTN (skip the ATTN prefix). Use second line of the address. Usually, it is the name of the person.")
     address_country: str = Field(
-        description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name.")
+        description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name. For example, US to United States.")
     tax_registration_number: Optional[str] = Field(default=None,
-                                                   description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or  Issued To; usually the next number after AWS Account Number")
-    billing_period: str = Field(description="Billing Period; Two dates separated by a dash")
+                                                   description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or Issued To; usually the next number after AWS Account Number; IGNORE Amazon Web Services Tax Number; IGNORE if after Billing Period")
+    billing_period: str = Field(
+        description="Billing Period; Two dates separated by a dash; both dates should be in 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
     invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
     invoice_date: str = Field(description="Invoice Date from the Invoice Summary")
     original_invoice_number: Optional[str] = Field(default=None,
@@ -44,7 +45,7 @@ class AwsInvoiceCredit(BaseModel):
     total_vat_tax_amount: Optional[float] = Field(default=None,
                                                   description="(Total) VAT/Tax Amount from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     total_vat_tax_currency: Optional[str] = Field(default=None,
-                                                  description="VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
+                                                  description="(Total) VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
     net_charges_usd: Optional[float] = Field(default=None,
                                              description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     net_charges_non_usd: Optional[float] = Field(default=None,
@@ -96,6 +97,7 @@ def scan_folder(folder, max_docs=0, processed_files=None):
                 # log progress every 100 documents
                 if doc_count % 100 == 0:
                     print(f"Parsed {doc_count} documents")
+                # break if max_docs is reached
                 if max_docs != 0 and doc_count >= max_docs:
                     return documents
     return documents
@@ -153,9 +155,9 @@ async def extract_data(model, document, sem):
             parsing_request = textwrap.dedent(
                 """
                 Tips:
-                - Convert all dates to "Month name Day, Year" format with no leading zeros
-                - Format all dates according to "Month name Day, Year" format with no leading zeros
-                - Convert alpha-2 country code to a full country name
+                - Convert ALL dates to "Month name Day, Year" format with no leading zeros
+                - Format ALL dates according to "Month name Day, Year" format with no leading zeros
+                - Convert ALL instances of alpha-2 country code to a full country name
                 - Branch name should not contain a full company name
                 - Be careful with charges and amount signs, they are usually negative for credits
                 - Extract exchange rate (X) from (1 USD = X currency) pattern
@@ -182,7 +184,7 @@ async def main():
     parser.add_argument("--max_docs", type=int, help="maximum number of documents to process", default=0,
                         required=False)
     parser.add_argument("--data_dir", type=str, help="folder to scan for documents", default="./data")
-    parser.add_argument("--model", type=str, help="model name", default="gpt-4-turbo", required=False)
+    parser.add_argument("--model", type=str, help="model name", default="gpt-4o", required=False)
     parser.add_argument("--output", type=str, help="output file name", default="invoices.csv", required=False)
     parser.add_argument("--service", type=str, help="service to use for LLM models (openai or bedrock)",
                         default="openai", required=False)
