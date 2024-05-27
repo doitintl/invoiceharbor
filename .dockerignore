@@ -1,0 +1,26 @@
+# .dockerignore
+
+# Ignore Python virtual environment
+.venv
+
+# Ignore AWS related files
+aws
+
+# Ignore data folder
+data
+
+# Ignore prompts folder
+prompts
+
+# Ignore environment variables
+.envrc*
+
+# Ignore data files
+*.csv
+
+# Ignore markdown files
+*.md
+
+# ignore helper scripts
+prepare_data.py
+debug.ipynb
