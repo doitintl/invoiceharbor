@@ -1,4 +1,5 @@
 # .dockerignore
+.dockerignore
 
 # Ignore Python virtual environment
 .venv
@@ -11,6 +12,9 @@ data
 
 # Ignore prompts folder
 prompts
+
+# Ignore cache pycache
+__pycache__
 
 # Ignore environment variables
 .envrc*

@@ -16,5 +16,8 @@ aws
 .env
 .envrc
 
+# pycache
+__pycache__
+
 # macOS files
 .DS_Store

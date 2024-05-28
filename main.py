@@ -274,5 +274,5 @@ async def main():
     end = time.time()
     print(f"Time elapsed: {end - end_scan} seconds")
 
-
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

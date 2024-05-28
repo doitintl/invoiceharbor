@@ -1,0 +1,9 @@
+[flake8]
+exclude = .venv,aws,data
+count = True
+select = E9,F63,F7,F82
+show-source = True
+statistics = True
+exit-zero = True
+max-complexity = 10
+max-line-length = 200
