@@ -105,19 +105,12 @@ def scan_folder(folder, max_docs=0, processed_files=None):
 
 # get sorted column values from a CSV file
 def get_sorted_column_values(file_name, column_index):
-    try:
-        with open(file_name, 'r', newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            next(reader)  # Skip the header row
-            column_values = [row[column_index] for row in reader if len(row) > column_index]
-        column_values.sort()
-        return column_values
-    except FileNotFoundError:
-        print(f"The file {file_name} was not found.")
-        return []
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return []
+    with open(file_name, 'r', newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # Skip the header row
+        column_values = [row[column_index] for row in reader if len(row) > column_index]
+    column_values.sort()
+    return column_values
 
 
 # extract data from the document
