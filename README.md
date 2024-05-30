@@ -4,10 +4,16 @@ InvoiceHarbor extracts invoice data from AWS Invoices and Credits PDF files and 
 
 ## Installation
 
-Python 3.6 or higher is required.
+Python 3.12 or higher is required.
 
 ```bash
-install -r requirements.txt
+pip install -r requirements.txt
+```
+
+### Update dependencies
+
+```bash
+pip-compile requirements.in --upgrade
 ```
 
 ## Usage
@@ -19,30 +25,28 @@ Set `OPENAI_API_KEY` environment variable to your OpenAI API key.
 Use the `main.py` script to run the extraction.
 
 ```text
-usage: main.py [-h] concurrency max_docs data_dir
-
-positional arguments:
-  concurrency  number of concurrent requests to make
-  max_docs     maximum number of documents to process
-  data_dir     folder to scan for documents
+usage: main.py [-h] [--concurrency CONCURRENCY] [--max_docs MAX_DOCS] [--data_dir DATA_DIR] [--model MODEL] [--output OUTPUT] [--service SERVICE] [--kwargs KWARGS]
 
 options:
-  -h, --help   show this help message and exit
+  -h, --help            show this help message and exit
+  --concurrency CONCURRENCY
+                        number of concurrent requests to make
+  --max_docs MAX_DOCS   maximum number of documents to process
+  --data_dir DATA_DIR   folder to scan for documents
+  --model MODEL         model name
+  --output OUTPUT       output file name
+  --service SERVICE     service to use for LLM models (openai or bedrock)
+  --kwargs KWARGS       additional arguments for the model (dict)
 ```
 
 ```bash
-# Run with 50 concurrent requests, process 100 documents, and scan ./data/12-2023 folder
-python main.py 50 100 ./data/12-2023
+# Run with 60 concurrent requests, process 200 documents, and scan ./data/05-2024 folder
+python main.py --concurrency=60 --max_docs=200 --data_dir=./data/05-2024 --output=invoices-2024-05.csv
 
 # output is written to invoices.csv
 head invoices.csv
 ```
 
-### Running the experiment
-
-Run the `playground_openai.py` Jupiter notebook.
-
-To see progress, run `watch -n 1 wc -l invoices.csv`.
 
 ## License
 
