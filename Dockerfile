@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12-alpine as builder
+FROM python:3.12-slim-bullseye as builder
 
 # Set environment varibles
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -8,9 +8,6 @@ ENV PYTHONUNBUFFERED 1
 # Set work directory
 WORKDIR /code
 
-# Install system dependencies
-RUN apk update && apk add build-base
-
 # Install python dependencies
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt
@@ -18,18 +15,18 @@ RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels -r requirements.txt
 ##################
 # FINAL IMAGE
 ##################
-FROM python:3.12-alpine
+FROM python:3.12-slim-bullseye
 
 # Create app directory
 WORKDIR /app
 
 # Create a non-root user and group
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd --system appgroup && useradd --system --gid appgroup appuser
 
 # Install dependencies
 COPY --from=builder /wheels /wheels
 COPY --from=builder /code/requirements.txt .
-RUN pip install --no-cache /wheels/*
+RUN pip install --no-cache-dir /wheels/*
 
 # Copy main app
 COPY main.py .

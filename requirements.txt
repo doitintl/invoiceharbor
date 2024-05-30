@@ -99,6 +99,10 @@ pydantic==2.7.2
     #   openai
 pydantic-core==2.18.3
     # via pydantic
+pymupdf==1.24.4
+    # via -r requirements.in
+pymupdfb==1.24.3
+    # via pymupdf
 pyyaml==6.0.1
     # via
     #   langchain
