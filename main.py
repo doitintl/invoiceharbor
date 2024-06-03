@@ -34,6 +34,7 @@ class AwsInvoiceCredit(BaseModel):
         description="Billing Period; Two dates separated by a dash; both dates should be in 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
     invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
     invoice_date: str = Field(description="Invoice Date from the Invoice Summary")
+    allocation_number: Optional[str] = Field(default=None, description="Allocation Number from the Invoice Summary")
     original_invoice_number: Optional[str] = Field(default=None,
                                                    description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
     original_invoice_date: Optional[str] = Field(default=None,
