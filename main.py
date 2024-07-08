@@ -21,6 +21,7 @@ class AwsInvoiceCredit(BaseModel):
     doit_payer_id: str = Field(description="Doit Payer ID")
     document_type: str = Field(
         description="Document Type: can be 'Invoice' or 'Credit Note' only. Credit Note can be Credit Memo or Credit Adjustment Note.")
+    ri_invoice: Optional[bool] = Field(default=None, description="RI Invoice: True or False. It's RI Invoice if you see '(one time fee)' in the invoice.")
     aws_account_number: str = Field(description="AWS Account number")
     address_company: str = Field(
         description="Address or Bill to Address company name. Use first line of the address. Usually, it is the company name.")
