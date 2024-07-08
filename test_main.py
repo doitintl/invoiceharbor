@@ -10,6 +10,7 @@ def test_aws_invoice_credit_model():
         "file_name": "2024-04-06_Invoice_EUCNGB24_30944.pdf",
         "doit_payer_id": "doitintl-payer-1998",
         "document_type": "Credit Note",
+        "ri_invoice": None,
         "aws_account_number": "206722881646",
         "address_company": "Texthelp LTD",
         "address_attn": "Vadim Solovey",
