@@ -20,12 +20,12 @@ class AwsInvoiceCredit(BaseModel):
     file_name: str = Field(description="AWS Invoice PDF file name")
     doit_payer_id: str = Field(description="Doit Payer ID")
     document_type: str = Field(
-        description="Document Type: can be 'Invoice' or 'Credit Note' only. Credit Note can be Credit Memo or Credit Adjustment Note.")
+        description="Document Type: must be 'Invoice' or 'Credit Note' only. A 'Credit Note' is an invoice document indicating a refund, typically containing negative numbers.")
     ri_invoice: Optional[bool] = Field(default=None, description="RI Invoice: True or False. It's RI Invoice if you see '(one time fee)' in the invoice.")
     aws_account_number: str = Field(description="AWS Account number")
     address_company: str = Field(
         description="Address or Bill to Address company name. Use first line of the address. Usually, it is the company name.")
-    address_attn: str = Field(
+    address_attn:  Optional[str] = Field(
         description="Address or Bill to Address ATTN (skip the ATTN prefix). Use second line of the address. Usually, it is the name of the person.")
     address_country: str = Field(
         description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name. For example, US to United States.")
@@ -41,13 +41,13 @@ class AwsInvoiceCredit(BaseModel):
     original_invoice_date: Optional[str] = Field(default=None,
                                                  description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note; leave empty if not present")
     total_amount: float = Field(
-        description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+        description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; negative for credits.")
     total_amount_currency: str = Field(
         description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
     total_vat_tax_amount: Optional[float] = Field(default=None,
-                                                  description="(Total) VAT/Tax Amount from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+                                                  description="(TOTAL) VAT/Tax Amount from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix; ensure correct sign for credits.")
     total_vat_tax_currency: Optional[str] = Field(default=None,
-                                                  description="(Total) VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
+                                                  description="(TOTAL) VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
     net_charges_usd: Optional[float] = Field(default=None,
                                              description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     net_charges_non_usd: Optional[float] = Field(default=None,
@@ -150,12 +150,18 @@ async def extract_data(model, document, sem):
             parsing_request = textwrap.dedent(
                 """
                 Tips:
+                - Classify the document as 'Invoice' if it is an invoice.
+                - Classify the document as 'Credit Note' if it mentions 'Credit Memo', 'Credit Adjustment Note' or 'Tax Invoice Adjustment' or anything similar.
+                - When extracting VAT numbers, prioritize the first occurrence of "TOTAL VAT" or "TOTAL Tax". Ignore subsequent VAT numbers.
+                - Focus on extracting the "total_vat_tax_amount" specifically from the section labeled "TOTAL VAT" or "TOTAL Tax". This is crucial for accuracy.
+                - Total amount and total VAT amount should be negative for credits
                 - Convert ALL dates to "Month name Day, Year" format with no leading zeros
                 - Format ALL dates according to "Month name Day, Year" format with no leading zeros
                 - Convert ALL instances of alpha-2 country code to a full country name
                 - Branch name should not contain a full company name
                 - Be careful with charges and amount signs, they are usually negative for credits
                 - Extract exchange rate (X) from (1 USD = X currency) pattern
+                - Please format all numbers without commas (e.g., use 2200.58 instead of 2,200.58).
                 """
             )
             chain = LLMChain(llm=model, prompt=prompt)
