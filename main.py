@@ -31,8 +31,6 @@ class AwsInvoiceCredit(BaseModel):
         description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name. For example, US to United States.")
     tax_registration_number: Optional[str] = Field(default=None,
                                                    description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or Issued To; usually the next number after AWS Account Number; IGNORE Amazon Web Services Tax Number; IGNORE if after Billing Period")
-    billing_period: str = Field(
-        description="Billing Period; Two dates separated by a dash; both dates should be in 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
     invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
     invoice_date: str = Field(description="Invoice Date from the Invoice Summary")
     allocation_number: Optional[str] = Field(default=None, description="Allocation Number from the Invoice Summary")
@@ -45,9 +43,11 @@ class AwsInvoiceCredit(BaseModel):
     total_amount_currency: str = Field(
         description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
     total_vat_tax_amount: Optional[float] = Field(default=None,
-                                                  description="(TOTAL) VAT/Tax Amount from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix; ensure correct sign for credits.")
+                                                  description="Extract the (TOTAL) VAT/Tax Amount value from the section immediately following the 'TOTAL VAT' or 'TOTAL Tax', without the currency symbol and before the Billing Period. Add a minus sign if the amount is enclosed in parentheses or has a minus prefix to ensure the correct sign for credits.")
     total_vat_tax_currency: Optional[str] = Field(default=None,
-                                                  description="(TOTAL) VAT/Tax Currency from the (Invoice) Summary; use currency code instead of symbol")
+                                                  description="Extract the currency of the (TOTAL) VAT/Tax from the section immediately following the 'TOTAL VAT' or 'TOTAL Tax' before the Billing Period. This currency is specified directly after 'TOTAL VAT' or 'TOTAL Tax' and should be extracted as the currency code. This field determines the currency for the 'total_vat_tax_amount'.")
+    billing_period: str = Field(
+        description="Billing Period; Two dates separated by a dash; both dates should be in 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
     net_charges_usd: Optional[float] = Field(default=None,
                                              description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
     net_charges_non_usd: Optional[float] = Field(default=None,
@@ -128,15 +128,15 @@ async def extract_data(model, document, sem):
             prompt = PromptTemplate(
                 template=textwrap.dedent(
                     """
-                    The following document is a plain text extracted from AWS Invoice or Credit Note PDF file.
+                    Act as an accountant and extract data from the following document into a flat JSON object. The output should be formatted as a JSON instance that conforms to the provided JSON schema.
+                    
+                    {instructions}
+                    
+                    {format_instructions}
                     
                     <document>
                     {invoice}
                     <document>
-                    
-                    Act as an accountant and extract data from the above document into a flat JSON object.
-                    {format_instructions}
-                    {request}
                     
                     JSON:
                     """
@@ -147,27 +147,25 @@ async def extract_data(model, document, sem):
                 },
             )
             # Generate the input using the updated prompt.
-            parsing_request = textwrap.dedent(
+            parsing_instructions = textwrap.dedent(
                 """
-                Tips:
-                - Classify the document as 'Invoice' if it is an invoice.
-                - Classify the document as 'Credit Note' if it mentions 'Credit Memo', 'Credit Adjustment Note' or 'Tax Invoice Adjustment' or anything similar.
-                - When extracting VAT numbers, prioritize the first occurrence of "TOTAL VAT" or "TOTAL Tax". Ignore subsequent VAT numbers.
-                - Focus on extracting the "total_vat_tax_amount" specifically from the section labeled "TOTAL VAT" or "TOTAL Tax". This is crucial for accuracy.
-                - Total amount and total VAT amount should be negative for credits
-                - Convert ALL dates to "Month name Day, Year" format with no leading zeros
-                - Format ALL dates according to "Month name Day, Year" format with no leading zeros
-                - Convert ALL instances of alpha-2 country code to a full country name
-                - Branch name should not contain a full company name
-                - Be careful with charges and amount signs, they are usually negative for credits
-                - Extract exchange rate (X) from (1 USD = X currency) pattern
-                - Please format all numbers without commas (e.g., use 2200.58 instead of 2,200.58).
+                **Important Instructions:**
+                1. Classify the document as 'Invoice' if it is an invoice. Classify it as 'Credit Note' if it mentions 'Credit Memo', 'Credit Adjustment Note', or 'Tax Invoice Adjustment' or anything similar.
+                2. Ensure that the total amount and total VAT amount are negative for credits.
+                3. Net charges should be negative for credits.
+                4. Focus on extracting the `total_vat_tax_amount` specifically from the section labeled "TOTAL VAT" or "TOTAL Tax". This amount should be taken from the line that directly follows this label, which is formatted as "{currency} {number}" in the document.
+                5. Convert ALL dates to "Month name Day, Year" format with no leading zeros.
+                6. Format ALL dates according to "Month name Day, Year" format with no leading zeros.
+                7. Convert ALL instances of alpha-2 country code to a full country name.
+                8. The branch name should not contain a full company name and should not look like a full address.
+                9. Be careful with charges and amount signs; they are usually negative for credits.
+                10. Extract the exchange rate (X) from the pattern (1 USD = X currency).
+                11. Please format all numbers without commas (e.g., use 2200.58 instead of 2,200.58).
                 """
             )
             chain = LLMChain(llm=model, prompt=prompt)
-            # output = await chain.arun(request=parsing_request, invoice=document)
             # async invoke with dict input
-            result = await chain.ainvoke({"request": parsing_request, "invoice": document})
+            result = await chain.ainvoke({"instructions": parsing_instructions, "invoice": document})
             # remove everything before the first { and after the last }
             output = result["text"]
             output = output[output.find("{"):output.rfind("}") + 1]
