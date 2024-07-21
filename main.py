@@ -21,7 +21,7 @@ class AwsInvoiceCredit(BaseModel):
     doit_payer_id: str = Field(description="Doit Payer ID: Unique identifier for the payer in the DoiT system.")
     document_type: str = Field(
         description="Determine the document type based on content analysis. Classify as 'Invoice' if it primarily details charges, or 'Credit Note' if it contains references to 'Credit Memo', 'Credit Adjustment Note', 'Tax Invoice Adjustment', or similar terms. Additionally, consider the net total amount; classify as 'Credit Note' only if the net charges after credits/discounts are negative.")
-    ri_invoice: Optional[bool] = Field(default=None, description="Indicates if the invoice is for a Reserved Instance (RI), identifiable by '(one time fee)' mention. True for RI invoices, None otherwise or if not applicable.")
+    ri_invoice: Optional[bool] = Field(default=None, description="Indicates if the invoice is for a Reserved Instance (RI), identifiable by specific phrases next to service charges, such as '(one time fee)'. True for RI invoices, None otherwise or if not applicable.")
     aws_account_number: str = Field(description="The AWS account number associated with the invoice.")
     address_company: str = Field(
         description="The company name as it appears on the invoice's billing address. Typically the first line of the address before ATTN line.")
@@ -168,6 +168,7 @@ async def extract_data(model, document, sem):
                 16. The billing address company cannot be the AWS company name. Ensure that the billing address company is the first line of the address before the ATTN line.
                 17. Use city names to figure out the billing address country (not city), if the country name is not provided or cannot be determined.
                 18. When net charges in non-USD currency are not found in the document, try to extract it from the total invoice amount in non-USD currency, if available.
+                19. To determine if an invoice is for a Reserved Instance (RI), check for the presence of the phrase '(one time fee)' next to any of the service charges. If this phrase is present, classify the invoice as an RI invoice by setting the `ri_invoice` field to True. If this phrase is not found, set the `ri_invoice` field to None.
                 """
             )
             # Create a runnable chain
