@@ -6,9 +6,9 @@ import os
 import textwrap
 import time
 from langchain_community.document_loaders import PyMuPDFLoader
-from langchain.chains import LLMChain
 from langchain.output_parsers import PydanticOutputParser
 from langchain.prompts import PromptTemplate
+from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import ChatOpenAI
 from langchain_community.chat_models import BedrockChat
 from pydantic import BaseModel, Field
@@ -17,51 +17,51 @@ from typing import Optional
 
 # Define a new Pydantic model with field descriptions and tailored for AWS Invoice/Credit Record.
 class AwsInvoiceCredit(BaseModel):
-    file_name: str = Field(description="AWS Invoice PDF file name")
-    doit_payer_id: str = Field(description="Doit Payer ID")
+    file_name: str = Field(description="Name of the AWS invoice PDF file.")
+    doit_payer_id: str = Field(description="Doit Payer ID: Unique identifier for the payer in the DoiT system.")
     document_type: str = Field(
-        description="Document Type: must be 'Invoice' or 'Credit Note' only. A 'Credit Note' is an invoice document indicating a refund, typically containing negative numbers.")
-    ri_invoice: Optional[bool] = Field(default=None, description="RI Invoice: True or False. It's RI Invoice if you see '(one time fee)' in the invoice.")
-    aws_account_number: str = Field(description="AWS Account number")
+        description="Determine the document type based on content analysis. Classify as 'Invoice' if it primarily details charges, or 'Credit Note' if it contains references to 'Credit Memo', 'Credit Adjustment Note', 'Tax Invoice Adjustment', or similar terms. Additionally, consider the net total amount; classify as 'Credit Note' only if the net charges after credits/discounts are negative.")
+    ri_invoice: Optional[bool] = Field(default=None, description="Indicates if the invoice is for a Reserved Instance (RI), identifiable by '(one time fee)' mention. True for RI invoices, None otherwise or if not applicable.")
+    aws_account_number: str = Field(description="The AWS account number associated with the invoice.")
     address_company: str = Field(
-        description="Address or Bill to Address company name. Use first line of the address. Usually, it is the company name.")
+        description="The company name as it appears on the invoice's billing address. Typically the first line of the address before ATTN line.")
     address_attn:  Optional[str] = Field(
-        description="Address or Bill to Address ATTN (skip the ATTN prefix). Use second line of the address. Usually, it is the name of the person.")
+        description="The attention line of the billing address, excluding the 'ATTN' prefix. Typically the second line of the address. Usually, it is the name of the person.")
     address_country: str = Field(
-        description="Bill to address country. Use last line of the address. Usually, it is the country name. Convert country code to a full country name. For example, US to United States.")
+        description="The country name in the billing address. Typically the last line of the address. Convert alpha-2 country codes to full country names. For example, US to United States.")
     tax_registration_number: Optional[str] = Field(default=None,
-                                                   description="Tax Registration Number or ABN Number or GST Number or GST/HST Registration number or Issued To; usually the next number after AWS Account Number; IGNORE Amazon Web Services Tax Number; IGNORE if after Billing Period")
-    invoice_number: str = Field(description="Invoice Number from the Invoice Summary")
-    invoice_date: str = Field(description="Invoice Date from the Invoice Summary")
-    allocation_number: Optional[str] = Field(default=None, description="Allocation Number from the Invoice Summary")
+                                                   description=" The tax registration number (e.g., ABN, GST Number, GST/HST Registration, Issued To) as listed on the invoice, excluding AWS's tax number. Typically the next number after AWS Account Number. Ignore if found after the billing period.")
+    invoice_number: str = Field(description="The invoice number as provided in the invoice summary.")
+    invoice_date: str = Field(description="The date the invoice was issued as provided in the invoice summary.")
+    allocation_number: Optional[str] = Field(default=None, description="The allocation number from the invoice summary, if present.")
     original_invoice_number: Optional[str] = Field(default=None,
-                                                   description="Original Invoice Number from the Invoice Summary of Credit Memo/Note; leave empty if not present")
+                                                   description="For credit notes, the original invoice number related to the adjustment. For regular invoices it can be a replacement for invoice (typically found after billing period). Leave blank if not applicable.")
     original_invoice_date: Optional[str] = Field(default=None,
-                                                 description="Original Invoice Date from the Invoice Adjustment Summary of Credit Memo/Note; leave empty if not present")
+                                                 description="For credit notes, the date of the original invoice being adjusted. Leave blank if not applicable.")
     total_amount: float = Field(
-        description="Total Amount from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix; negative for credits.")
+        description="The total amount charged or credited on the invoice, without currency symbols. Reflects the net result of all charges and credits on the invoice. This should be 0 if charges are fully offset by credits, rather than summing up the individual credit amounts. Ensure to use negative values for credits.")
     total_amount_currency: str = Field(
-        description="Total Amount Currency from the Invoice Summary; use currency code instead of symbol")
+        description="The currency code for the total amount, as listed on the invoice.")
     total_vat_tax_amount: Optional[float] = Field(default=None,
-                                                  description="Extract the (TOTAL) VAT/Tax Amount value from the section immediately following the 'TOTAL VAT' or 'TOTAL Tax', without the currency symbol and before the Billing Period. Add a minus sign if the amount is enclosed in parentheses or has a minus prefix to ensure the correct sign for credits.")
+                                                  description="The total VAT or tax amount, extracted from the section immediately following 'TOTAL VAT' or 'TOTAL Tax', without currency symbols. If the document shows a net zero VAT or tax charge, this field should be set to 0. Use negative values for credits. If exists, always before the billing period.")
     total_vat_tax_currency: Optional[str] = Field(default=None,
-                                                  description="Extract the currency of the (TOTAL) VAT/Tax from the section immediately following the 'TOTAL VAT' or 'TOTAL Tax' before the Billing Period. This currency is specified directly after 'TOTAL VAT' or 'TOTAL Tax' and should be extracted as the currency code. This field determines the currency for the 'total_vat_tax_amount'.")
+                                                  description="The currency code for the total VAT or tax amount, determined from the section immediately following 'TOTAL VAT' or 'TOTAL Tax'.")
     billing_period: str = Field(
-        description="Billing Period; Two dates separated by a dash; both dates should be in 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
+        description="The billing period covered by the invoice. Typically formatted as two dates separated by a dash. Please, format both date according to the 'Month name Day, Year' format with no leading zeros fix if needed (ex. January 1, 2022 - January 31, 2022)")
     net_charges_usd: Optional[float] = Field(default=None,
-                                             description="(Net) Charges (USD) (After Credits/Discounts, excl. Tax) from the (Invoice) Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+                                             description="Net charges in USD after credits/discounts, excluding tax, without currency symbol. Use negative values for credits.")
     net_charges_non_usd: Optional[float] = Field(default=None,
-                                                 description="Net Charges (non-USD) (After Credits/Discounts, excl. Tax) in local currency from the Invoice Summary; without currency; add minus sign if parentheses around or has a minus prefix")
+                                                 description="Net charges in non-USD currency after credits/discounts, excluding tax, without currency symbol. Use negative values for credits.")
     net_charges_currency: Optional[str] = Field(default=None,
-                                                description="Net Charges (non-USD) local currency; use currency code instead of symbol")
+                                                description="The currency code (replace symbol) for net charges in non-USD currency.")
     vat_percentage: Optional[float] = Field(default=None,
-                                            description="Extract VAT percent (without % sign) from one of these fields: VAT - <number>% or VAT in <percent> or GST amount at <percent> or HST Amount at <percent>")
+                                            description="The VAT rate applied, extracted (from  VAT - <number>% or VAT in % or GST amount at % or HST Amount at % and similar) without the '%' sign from the invoice.")
     exchange_rate: Optional[float] = Field(default=None,
-                                           description="Exchange Rate from the (1 USD = <rate> currency) formula")
+                                           description="The exchange rate applied, formatted as per the pattern '1 USD = X currency'.")
     amazon_company_name: str = Field(
-        description="Amazon Web Services company name. Usually, it is Amazon Web Services, Inc. but can be different for different countries")
+        description="The Amazon Web Services company name as listed on the invoice, which may vary by country.")
     amazon_company_branch: Optional[str] = Field(default=None,
-                                                 description="Amazon Web Services company branch. Usually, it is after Amazon Web Services EMEA SARL but can be different for different countries")
+                                                 description="The specific branch of Amazon Web Services, if mentioned, excluding full company name and address details. Typically after the 'Amazon Web Services EMEA SARL' but can be different for different countries.")
 
 
 # remove everything after one of the following lines (including the line itself)
@@ -150,26 +150,36 @@ async def extract_data(model, document, sem):
             parsing_instructions = textwrap.dedent(
                 """
                 **Important Instructions:**
-                1. Classify the document as 'Invoice' if it is an invoice. Classify it as 'Credit Note' if it mentions 'Credit Memo', 'Credit Adjustment Note', or 'Tax Invoice Adjustment' or anything similar.
-                2. Ensure that the total amount and total VAT amount are negative for credits.
-                3. Net charges should be negative for credits.
-                4. Focus on extracting the `total_vat_tax_amount` specifically from the section labeled "TOTAL VAT" or "TOTAL Tax". This amount should be taken from the line that directly follows this label, which is formatted as "{currency} {number}" in the document.
-                5. Convert ALL dates to "Month name Day, Year" format with no leading zeros.
-                6. Format ALL dates according to "Month name Day, Year" format with no leading zeros.
-                7. Convert ALL instances of alpha-2 country code to a full country name.
-                8. The branch name should not contain a full company name and should not look like a full address.
-                9. Be careful with charges and amount signs; they are usually negative for credits.
-                10. Extract the exchange rate (X) from the pattern (1 USD = X currency).
-                11. Please format all numbers without commas (e.g., use 2200.58 instead of 2,200.58).
+                1. Classify the document as 'Invoice' if it primarily details charges. Classify as 'Credit Note' if it contains references to 'Credit Memo', 'Credit Adjustment Note', 'Tax Invoice Adjustment', or similar terms. Additionally, consider the net total amount; classify as 'Credit Note' only if the net charges after credits/discounts are negative.
+                2. Implement a validation step to accurately determine the document type ('Invoice' or 'Credit Note') based on the presence of specific keywords and the net total amount. If the document lacks explicit credit-related terms but has a net zero or positive amount, classify it as 'Invoice'.
+                3. The total amount should reflect the net outcome of all charges and credits. Record as 0 if charges are fully offset by credits, rather than summing up the individual credit amounts. Use negative values for credits.
+                4. Ensure that both the total amount and the total VAT amount are negative for credits to accurately reflect credit transactions.
+                5. Net charges should be negative for credits, indicating a refund or credit situation.
+                6. Extract the `total_vat_tax_amount` specifically from the section labeled "TOTAL VAT" or "TOTAL Tax". This amount should be taken from the line immediately following this label, formatted as "{currency} {number}".
+                7. The total VAT or tax amount should accurately reflect the net VAT or tax charges after applying any credits. Record as 0 if the net VAT or tax charge is zero.
+                8. Correct negative zero values (-0.0) to positive zero (0.0) for fields like `total_amount`, `total_vat_tax_amount`, `net_charges_usd`, and `net_charges_non_usd` to ensure data accuracy and avoid confusion.
+                9. Convert all dates to the "Month name Day, Year" format with no leading zeros to maintain consistency across documents.
+                10. Ensure all dates are formatted according to the "Month name Day, Year" format with no leading zeros for uniformity.
+                11. Convert all instances of alpha-2 country codes to their full country name equivalents to enhance readability and clarity.
+                12. The branch name should exclude the full company name and should not resemble a full address, to maintain focus on relevant details.
+                13. Monitor charges and amount signs carefully; they are typically negative for credits, reflecting the nature of the transaction.
+                14. Extract the exchange rate from the pattern "1 USD = X currency" to facilitate accurate financial calculations.
+                15. Format all numbers without commas (e.g., use 2200.58 instead of 2,200.58) for consistency and to avoid parsing errors.
+                16. The billing address company cannot be the AWS company name. Ensure that the billing address company is the first line of the address before the ATTN line.
+                17. Use city names to figure out the billing address country (not city), if the country name is not provided or cannot be determined.
+                18. When net charges in non-USD currency are not found in the document, try to extract it from the total invoice amount in non-USD currency, if available.
                 """
             )
-            chain = LLMChain(llm=model, prompt=prompt)
-            # async invoke with dict input
-            result = await chain.ainvoke({"instructions": parsing_instructions, "invoice": document})
-            # remove everything before the first { and after the last }
-            output = result["text"]
-            output = output[output.find("{"):output.rfind("}") + 1]
-            parsed = parser.parse(output)
+            # Create a runnable chain
+            chain = (
+                    {"instructions": RunnablePassthrough(), "invoice": RunnablePassthrough()}
+                    | prompt
+                    | model
+                    | parser
+            )
+
+            # Invoke the chain
+            parsed = await chain.ainvoke({"instructions": parsing_instructions, "invoice": document})
             return parsed
         except Exception as e:
             # returning and not raising the exception to continue processing other documents
