@@ -216,7 +216,7 @@ async def main():
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             temperature=kwargs.get("temperature", 0.0),  # default temperature is 0.0
             max_tokens=kwargs.get("max_tokens", 4096),  # default max tokens is 4096
-            model_kwargs={"top_p": 0.0}
+            top_p=kwargs.get("top_p", 0.0),  # default top p is 0.0
         )
     elif args.service == "bedrock":
         llm = BedrockChat(
